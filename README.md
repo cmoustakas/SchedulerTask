@@ -1,39 +1,40 @@
 🧵 Multithreaded Task Scheduler
 
 This repository implements a high-performance, multithreaded task scheduler in C++. It supports both one-off and recurring tasks and prioritizes execution based on priority level and deadline urgency.
- Features
 
-    One-off Task Scheduling — Submit individual tasks with optional deadlines.
+## Features
 
-    Recurring Task Scheduling — Schedule periodic tasks with millisecond precision.
+  One-off Task Scheduling — Submit individual tasks with optional deadlines.
 
-    Prioritized Execution — Tasks are executed based on:
+  Recurring Task Scheduling — Schedule periodic tasks with millisecond precision.
 
-        Priority level (high, medium, low),
+  Prioritized Execution — Tasks are executed based on:
 
-        Deadline tightness (earlier deadlines first).
+  Priority level (high, medium, low),
 
-    Custom Worker Thread Pool — Threads are preallocated, reducing dynamic memory and thread creation overhead.
+  Deadline tightness (earlier deadlines first).
 
-    Execution Metrics — Automatically collects and prints min, max, mean, and variance of task latency at destruction.
+  Custom Worker Thread Pool — Threads are preallocated, reducing dynamic memory and thread creation overhead.
 
-    Efficient Synchronization — Uses std::condition_variable, std::mutex, and prefetching optimizations for low-latency execution.
+  Execution Metrics — Automatically collects and prints min, max, mean, and variance of task latency at destruction.
 
-📦 Overview
+  Efficient Synchronization — Uses std::condition_variable, std::mutex, and prefetching optimizations for low-latency execution.
+
+## Overview
 
 Upon construction of a Scheduler instance:
 
-    A thread pool is created to consume and execute scheduled tasks from a shared priority queue.
+  A thread pool is created to consume and execute scheduled tasks from a shared priority queue.
 
-    A separate thread polls recurring tasks and periodically enqueues them if their interval has expired.
+  A separate thread polls recurring tasks and periodically enqueues them if their interval has expired.
 
 Execution Flow
 
-    Worker threads wait efficiently until tasks become available.
+  Worker threads wait efficiently until tasks become available.
 
-    When signaled, the most urgent task is popped and executed.
+  When signaled, the most urgent task is popped and executed.
 
-    Recurring tasks are managed using a timestamp detector, triggering their enqueue when their interval has passed.
+  Recurring tasks are managed using a timestamp detector, triggering their enqueue when their interval has passed.
 
 ## 📦 Build Instructions
 
