@@ -19,9 +19,18 @@ static void workerWrapper(Task &task, SchedulerStats &statistics)
 
 static inline bool garbageCollect(ThreadPool &pool)
 {
-    const size_t full_size = pool.size();
+    const auto fastErrase = [](int &index, ThreadPool &pool) {
+        // The code below is a workaround to avoid using
+        // std::vector::erase that is gonna make copies and mallocs.
+        auto last_it = pool.end() - 1;
+        std::swap(pool[index], *last_it);
+        pool.pop_back();
+        index--;
+    };
 
-    for (auto i = 0; i < pool.size(); ++i) {
+    const int full_size = pool.size();
+
+    for (int i = 0; i < static_cast<int>(pool.size()); ++i) {
         auto &future = pool[i];
         const bool thread_completed = future.wait_for(std::chrono::seconds(0))
                                       == std::future_status::ready;
@@ -31,13 +40,10 @@ static inline bool garbageCollect(ThreadPool &pool)
         }
 
         // If the thread is finished just pop it from the active pool.
-        // The code below is a workaround to avoid using std::vector::erase that is gonna make copies and mallocs.
-        auto last_it = pool.end() - 1;
-        std::swap(pool[i], *last_it);
-        pool.pop_back();
-        i--;
+        fastErrase(i, pool);
     }
 
+    // If the size of the pool remained the same the queue can not be served because it is still full
     const bool can_serve_queue = pool.size() == full_size;
     return can_serve_queue;
 }
@@ -82,42 +88,48 @@ static void pollRecurringTasks(std::priority_queue<Task> &task_queue,
     auto begin_timestamp = std::chrono::steady_clock::now();
 
     while (executor_state == ThreadState::RUNNING) {
+        std::lock_guard<std::mutex> lock_r(recurring_mtx);
         {
-            std::lock_guard<std::mutex> lock_r(recurring_mtx);
-
-            for (auto it = last_it; it != recurring_tasks.end();) {
-                double interval = it->first;
-                auto &tasks = it->second;
-
-                auto current_timestamp = std::chrono::steady_clock::now();
-                double duration = std::chrono::duration<double, std::milli>(current_timestamp
-                                                                            - begin_timestamp)
-                                      .count();
-
-                if (duration >= interval) {
-                    std::lock_guard<std::mutex> lock_q(queue_mtx);
-                    for (auto &task : tasks) {
-                        //Update the enqueued timestamp
-                        task.m_enqueued_timestamp = std::chrono::steady_clock::now();
-                        task_queue.push(task);
-                    }
-                }
-
-                last_it++;
-                if (last_it == recurring_tasks.end()) {
-                    last_it = recurring_tasks.begin();
-                    begin_timestamp = std::chrono::steady_clock::now();
-                }
-                // Break here to guarantee that the mutex will not get locked for one millisecond.
-                break;
+            // Boundary checking on the iterator
+            if (last_it == recurring_tasks.end()) {
+                last_it = recurring_tasks.begin();
+                begin_timestamp = std::chrono::steady_clock::now();
             }
+
+            const double interval = last_it->first;
+            auto &tasks = last_it->second;
+
+            auto current_timestamp = std::chrono::steady_clock::now();
+            const double duration = std::chrono::duration<double, std::milli>(current_timestamp
+                                                                              - begin_timestamp)
+                                        .count();
+
+            if (duration >= interval) {
+                std::lock_guard<std::mutex> lock_q(queue_mtx);
+                for (auto &task : tasks) {
+                    //Update the enqueued timestamp
+                    task.m_enqueued_timestamp = std::chrono::steady_clock::now();
+                    task_queue.push(task);
+                }
+            }
+
+            last_it++;
         }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
 
 Scheduler::Scheduler(size_t num_threads)
 {
+    if (num_threads == 0) {
+        throw std::runtime_error("Number of threads are expected to be non zero");
+    }
+
+    // Set the state and fire up the two main threads of the scheduler,
+    // the first one (m_task_executor) gets the enqueued tasks and executes them,
+    // in the meantime it also garbage collects the pool.
+    // The second one polls the recurring tasks and enqueues them periodically.
     m_executor_state = ThreadState::RUNNING;
     m_task_executor = std::async(std::launch::async,
                                  executeEnqueuedTasks,
@@ -126,12 +138,21 @@ Scheduler::Scheduler(size_t num_threads)
                                  std::ref(m_statistics),
                                  std::ref(m_queue_mtx),
                                  num_threads);
+
+    m_recurring_enqueuer = std::async(std::launch::async,
+                                      pollRecurringTasks,
+                                      std::ref(m_task_queue),
+                                      std::ref(m_executor_state),
+                                      std::ref(m_recurring_tasks),
+                                      std::ref(m_queue_mtx),
+                                      std::ref(m_recurring_mtx));
 }
 
 Scheduler::~Scheduler()
 {
     m_executor_state = ThreadState::FINISHED;
     m_task_executor.wait();
+    m_recurring_enqueuer.wait();
 }
 /**
      * @brief schedule
@@ -156,7 +177,8 @@ void Scheduler::scheduleRecurring(TaskFunction &&task_fn,
 {
     std::lock_guard<std::mutex> lock(m_recurring_mtx);
     const auto dummy_time = std::chrono::steady_clock::now();
-    Task task = {std::move(task_fn), priority, dummy_time, dummy_time};
+    Task task = {std::move(task_fn), priority, std::nullopt, dummy_time};
     m_recurring_tasks[interval.count()].push_back(task);
 }
+
 } // namespace scheduler_module
