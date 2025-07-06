@@ -30,8 +30,9 @@ When a `Scheduler` object is instantiated, two dedicated threads are launched:
 This project uses CMake. Make sure you have CMake (≥ 3.14) and a C++17-compatible compiler.
 
 ```bash
-git clone https://github.com/your_username/your_repo.git
-cd your_repo
+git clone https://github.com/cmoustakas/SchedulerTask.git
+cd SchedulerTask
 mkdir build && cd build
-cmake ..
-make
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+make -j$(nproc)
+./SchedulerTests
