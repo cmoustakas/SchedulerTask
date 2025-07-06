@@ -67,13 +67,18 @@ static void executeEnqueuedTasks(std::priority_queue<Task> &task_queue,
         // Most of the times the queue will be ready to be served, hopefully...
         if (__builtin_expect(can_serve_queue, true)) {
             std::lock_guard<std::mutex> lock(mtx);
-            Task most_urgent_task = task_queue.top();
-            task_queue.pop();
+            can_serve_queue &= !task_queue.empty();
+            // Most of the times the queue will be ready to be served, hopefully...
+            if (__try_branch_pred_hint(can_serve_queue, true)) {
+                assert(!task_queue.empty());
+                Task most_urgent_task = task_queue.top();
+                task_queue.pop();
 
-            pool.emplace_back(std::async(std::launch::async,
-                                         workerWrapper,
-                                         std::ref(most_urgent_task),
-                                         std::ref(statistics)));
+                pool.emplace_back(std::async(std::launch::async,
+                                             workerWrapper,
+                                             std::ref(most_urgent_task),
+                                             std::ref(statistics)));
+            }
         }
     }
 }
