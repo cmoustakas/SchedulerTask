@@ -169,8 +169,8 @@ TEST(SchedulerTest, RecurringTwoTasks)
     std::chrono::milliseconds interval_one(30);
     std::chrono::milliseconds interval_two(50);
 
-    int execution_times_one = 0;
-    int execution_times_two = 0;
+    std::atomic<int> execution_times_one = 0;
+    std::atomic<int> execution_times_two = 0;
 
     constexpr int kExpectedExecutionsOne = 3;
     constexpr int kExpectedExecutionsTwo = 2;
