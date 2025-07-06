@@ -25,38 +25,38 @@ public:
 
     /**
      * @brief schedule Schedules the one-off task
-     * @param task
-     * @param priority
-     * @param deadline
+     * @param task The task
+     * @param priority The priority of the task
+     * @param deadline The deadline of the task
      */
     void schedule(TaskFunction &&task_fn,
                   const Task::Priority priority,
                   std::optional<std::chrono::steady_clock::time_point> deadline = std::nullopt);
 
     /**
-     * @brief scheduleRecurring
-     * @param task
-     * @param priority
-     * @param interval
+     * @brief scheduleRecurring Schedules tasks with specific interval
+     * @param task The task
+     * @param priority The priority
+     * @param interval The interval
      */
     void scheduleRecurring(TaskFunction &&task_fn,
                            const Task::Priority priority,
                            std::chrono::milliseconds interval);
 
     /**
-     * @brief getLatencyStatistics
+     * @brief getLatencyStatistics returns the latency statistics
      * @return 
      */
     std::tuple<double, double, double, double> getLatencyStatistics() const noexcept;
 
 private:
     /**
-     * @brief workerWrapper
+     * @brief workerWrapper Core loop for all the workers in the pool
      */
     void workerWrapper();
 
     /**
-     * @brief pollRecurringTasks
+     * @brief pollRecurringTasks Loop of the worker that enqueues the recurring tasks
      */
     void pollRecurringTasks();
 

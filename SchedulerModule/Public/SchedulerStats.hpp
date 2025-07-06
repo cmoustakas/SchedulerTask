@@ -22,13 +22,13 @@ public:
     ~SchedulerStats() = default;
 
     /**
-     * @brief updateMetrics
-     * @param duration
+     * @brief updateMetrics Update the statistic metrics member
+     * @param duration the current duration = enqueue - start_execution
      */
     void updateMetrics(const double duration) noexcept;
 
     /**
-     * @brief getMetricsSoFar
+     * @brief getMetricsSoFar Returns the metrics
      * @return 
      */
     [[nodiscard]] Metrics getMetricsSoFar() const noexcept
