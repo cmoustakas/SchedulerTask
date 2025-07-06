@@ -3,7 +3,6 @@
 #include <cassert>
 #include <iostream>
 #include <sstream>
-#include <thread>
 
 #if defined(__GNUC__) || defined(__clang__)
 #define __try_branch_pred_hint(cond, likely) \
@@ -82,6 +81,7 @@ static void executeEnqueuedTasks(std::priority_queue<Task> &task_queue,
             // Most of the times the queue will be ready to be served, hopefully...
             if (__try_branch_pred_hint(can_serve_queue, true)) {
                 assert(!task_queue.empty());
+
                 Task most_urgent_task = task_queue.top();
                 task_queue.pop();
 
@@ -100,35 +100,34 @@ static void pollRecurringTasks(std::priority_queue<Task> &task_queue,
                                std::mutex &queue_mtx,
                                std::mutex &recurring_mtx)
 {
-    std::unordered_map<double, std::vector<Task>>::iterator last_it = recurring_tasks.begin();
-    auto begin_timestamp = std::chrono::steady_clock::now();
+    std::unordered_map<double, std::chrono::steady_clock::time_point> expiration_detector;
 
     while (executor_state == ThreadState::RUNNING) {
+        auto current_timestamp = std::chrono::steady_clock::now();
         {
-            std::lock_guard<std::mutex> lock_r(recurring_mtx);
-            if (!recurring_tasks.empty()) {
-                // Boundary checking on the iterator
-                if (last_it == recurring_tasks.end()) {
-                    last_it = recurring_tasks.begin();
-                    begin_timestamp = std::chrono::steady_clock::now();
+            std::lock_guard<std::mutex> lock(recurring_mtx);
+
+            for (auto &[interval, tasks] : recurring_tasks) {
+                //If interval has just been inserted just set the current timestamp as the init point
+                if (expiration_detector.find(interval) == expiration_detector.end()) {
+                    expiration_detector[interval] = current_timestamp;
+                    continue;
                 }
 
-                const double interval = last_it->first;
-                auto &tasks = last_it->second;
+                double delta = std::chrono::duration<double, std::milli>(
+                                   current_timestamp - expiration_detector[interval])
+                                   .count();
 
-                auto current_timestamp = std::chrono::steady_clock::now();
-                const double duration = std::chrono::duration<double, std::milli>(current_timestamp
-                                                                                  - begin_timestamp)
-                                            .count();
-
-                if (duration >= interval) {
+                if (delta >= interval) {
+                    // Time expired push all the tasks to the queue and
+                    // update the init point of my expiration detector
+                    expiration_detector[interval] = current_timestamp;
                     std::lock_guard<std::mutex> lock_q(queue_mtx);
                     for (auto &task : tasks) {
                         //Update the enqueued timestamp
                         task.m_enqueued_timestamp = std::chrono::steady_clock::now();
                         task_queue.push(task);
                     }
-                    last_it++;
                 }
             }
         }
@@ -208,6 +207,9 @@ void Scheduler::scheduleRecurring(TaskFunction &&task_fn,
     //Reserve a big enough chunk of memory to prevent multiple copies and allocations.
     // 100 tasks with the same millisecond interval is very unlinkely I guess.
     double interval_key = interval.count();
+    if (interval_key <= 0) {
+        throw std::runtime_error("Interval negative values are not allowed");
+    }
     auto &task_vec = m_recurring_tasks[interval_key];
 
     if (task_vec.size() == kMaxRecurringTasksLen) {
