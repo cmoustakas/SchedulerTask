@@ -4,10 +4,11 @@
 #include <Task.hpp>
 
 #include <atomic>
+#include <condition_variable>
 #include <functional>
-#include <future>
 #include <optional>
 #include <queue>
+#include <thread>
 
 namespace scheduler_module {
 
@@ -23,7 +24,7 @@ public:
     ~Scheduler();
 
     /**
-     * @brief schedule
+     * @brief schedule Schedules the one-off task
      * @param task
      * @param priority
      * @param deadline
@@ -59,19 +60,19 @@ private:
      */
     void pollRecurringTasks();
 
-    std::priority_queue<Task> m_task_queue;
-    std::unordered_map<double, std::vector<Task>> m_recurring_tasks;
-
-    std::future<void> m_task_executor;
-    std::thread m_recurring_enqueuer;
-    ThreadPool m_pool;
-    std::atomic<SchedulerState> m_executor_state = SchedulerState::FINISHED;
+    std::atomic<SchedulerState> m_state = SchedulerState::FINISHED;
 
     SchedulerStats m_stats;
 
-    std::condition_variable m_condition;
+    ThreadPool m_pool;
+    std::priority_queue<Task> m_task_queue;
     std::mutex m_queue_mtx;
+
+    std::thread m_recurring_enqueuer;
+    std::unordered_map<double, std::vector<Task>> m_recurring_tasks;
     std::mutex m_recurring_mtx;
+
+    std::condition_variable m_condition;
 };
 
 } // namespace scheduler_module

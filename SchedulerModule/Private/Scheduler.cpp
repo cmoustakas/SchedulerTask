@@ -22,11 +22,7 @@ Scheduler::Scheduler(size_t num_threads)
         throw std::runtime_error("Number of threads are expected to be non zero");
     }
 
-    // Set the state and fire up the two main threads of the scheduler,
-    // the first one (m_task_executor) gets the enqueued tasks and executes them,
-    // in the meantime it also garbage collects the pool.
-    // The second one polls the recurring tasks and enqueues them periodically.
-    m_executor_state = SchedulerState::RUNNING;
+    m_state = SchedulerState::RUNNING;
     m_pool.reserve(num_threads);
 
     // I am assuming GNU compiler to fetch the vector to the Cache
@@ -40,7 +36,7 @@ Scheduler::Scheduler(size_t num_threads)
 
 Scheduler::~Scheduler()
 {
-    m_executor_state = SchedulerState::FINISHED;
+    m_state = SchedulerState::FINISHED;
     m_condition.notify_all();
 
     for (auto &t : m_pool) {
@@ -57,12 +53,7 @@ Scheduler::~Scheduler()
     std::cout << "\t Mean = " << metrix.m_mean << "\n";
     std::cout << "\t Variance = " << metrix.m_variance << "\n";
 }
-/**
-     * @brief schedule
-     * @param task
-     * @param priority
-     * @param deadline
-     */
+
 void Scheduler::schedule(TaskFunction &&task_fn,
                          const Task::Priority priority,
                          std::optional<std::chrono::steady_clock::time_point> deadline)
@@ -72,7 +63,6 @@ void Scheduler::schedule(TaskFunction &&task_fn,
     const auto enqueued_time = std::chrono::steady_clock::now();
     Task task = {std::move(task_fn), priority, deadline, enqueued_time};
     m_task_queue.push(std::move(task));
-
     m_condition.notify_one();
 }
 
@@ -106,15 +96,15 @@ void Scheduler::scheduleRecurring(TaskFunction &&task_fn,
 
 void Scheduler::workerWrapper()
 {
-    while (m_executor_state == SchedulerState::RUNNING) {
+    while (m_state == SchedulerState::RUNNING) {
         Task most_urgent_task;
         {
             std::unique_lock<std::mutex> lock(m_queue_mtx);
             m_condition.wait(lock, [this] {
-                return m_executor_state == SchedulerState::FINISHED || !m_task_queue.empty();
+                return m_state == SchedulerState::FINISHED || !m_task_queue.empty();
             });
 
-            if (m_executor_state == SchedulerState::FINISHED && m_task_queue.empty()) {
+            if (m_state == SchedulerState::FINISHED && m_task_queue.empty()) {
                 return;
             }
 
@@ -135,7 +125,7 @@ void Scheduler::pollRecurringTasks()
 {
     std::unordered_map<double, std::chrono::steady_clock::time_point> expiration_detector;
 
-    while (m_executor_state == SchedulerState::RUNNING) {
+    while (m_state == SchedulerState::RUNNING) {
         auto current_timestamp = std::chrono::steady_clock::now();
         {
             std::lock_guard<std::mutex> lock(m_recurring_mtx);
