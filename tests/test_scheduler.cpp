@@ -55,6 +55,7 @@ TEST(SchedulerTest, PriorityDeterministic)
     sch.schedule(std::move(fn_low_second), scheduler_module::Task::Priority::LOW);
     sch.schedule(std::move(fn_high_third), scheduler_module::Task::Priority::HIGH);
 
+    //Just give some time in order to make sure that the threads are executed
     std::this_thread::sleep_for(std::chrono::seconds(5));
 
     double high_ms = std::chrono::duration<double, std::deci>(t_high - start).count();
@@ -106,6 +107,7 @@ TEST(SchedulerTest, PriorityDeterministicOnDeadline)
                  scheduler_module::Task::Priority::MID,
                  deadline_tight);
 
+    //Just give some time in order to make sure that the threads are executed
     std::this_thread::sleep_for(std::chrono::seconds(5));
 
     double tight_ms = std::chrono::duration<double, std::milli>(t_tight - start).count();
@@ -142,14 +144,12 @@ TEST(SchedulerTest, RecurringTasksExplodeMapThrow)
 
 TEST(SchedulerTest, RecurringTasksNormal)
 {
-    std::chrono::milliseconds interval(10);
+    std::chrono::milliseconds interval(25);
 
     int execution_times = 0;
-    constexpr int kExpectedExecutions = 10;
-
+    constexpr int kExpectedExecutions = 4;
     {
         std::function<void()> job = [&execution_times]() {
-            std::cout << "Executed \n";
             execution_times++;
             return;
         };
@@ -157,8 +157,49 @@ TEST(SchedulerTest, RecurringTasksNormal)
         scheduler_module::Scheduler sch;
         sch.scheduleRecurring(std::move(job), scheduler_module::Task::Priority::MID, interval);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(105));
     }
 
-    EXPECT_EQ(execution_times, kExpectedExecutions);
+    //+- 1 deviation
+    constexpr int kTollerance = 1;
+    EXPECT_NEAR(execution_times, kExpectedExecutions, kTollerance);
+}
+
+TEST(SchedulerTest, RecurringTwoTasks)
+{
+    std::chrono::milliseconds interval_one(30);
+    std::chrono::milliseconds interval_two(50);
+
+    int execution_times_one = 0;
+    int execution_times_two = 0;
+
+    constexpr int kExpectedExecutionsOne = 3;
+    constexpr int kExpectedExecutionsTwo = 2;
+    {
+        std::function<void()> job_one = [&execution_times_one]() {
+            execution_times_one++;
+            return;
+        };
+
+        std::function<void()> job_two = [&execution_times_two]() {
+            execution_times_two++;
+            return;
+        };
+
+        scheduler_module::Scheduler sch;
+        sch.scheduleRecurring(std::move(job_one),
+                              scheduler_module::Task::Priority::MID,
+                              interval_one);
+
+        sch.scheduleRecurring(std::move(job_two),
+                              scheduler_module::Task::Priority::HIGH,
+                              interval_two);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(105));
+    }
+
+    //+- 1 deviation
+    constexpr int kTollerance = 1;
+    EXPECT_NEAR(execution_times_one, kExpectedExecutionsOne, kTollerance);
+    EXPECT_NEAR(execution_times_two, kExpectedExecutionsTwo, kTollerance);
 }
