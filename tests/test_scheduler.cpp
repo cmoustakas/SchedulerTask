@@ -9,8 +9,9 @@ TEST(SchedulerTest, UninitializedLatency)
 {
     scheduler_module::Scheduler sch;
     std::tuple<double, double, double, double> stats = sch.getLatencyStatistics();
-    const bool all_uninitialized = std::get<0>(stats) == 0.0 && std::get<1>(stats) == 0.0
-                                   && std::get<2>(stats) == 0.0 && std::get<3>(stats) == 0.0;
+    const bool all_uninitialized = std::get<0>(stats) == std::numeric_limits<double>::max()
+                                   && std::get<1>(stats) == 0.0 && std::get<2>(stats) == 0.0
+                                   && std::get<3>(stats) == 0.0;
 
     EXPECT_TRUE(all_uninitialized);
 }

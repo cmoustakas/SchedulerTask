@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <mutex>
 
 namespace scheduler_module {
@@ -11,7 +12,7 @@ public:
     struct Metrics
     {
         double m_mean = 0.0;
-        double m_min = 0.0;
+        double m_min = std::numeric_limits<double>::max();
         double m_max = 0.0;
         double m_variance = 0.0;
         uint64_t m_num_samples = 0;

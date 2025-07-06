@@ -22,8 +22,8 @@ static void workerWrapper(Task &task, SchedulerStats &statistics)
 {
     assert(task.m_task_fn != nullptr);
 
-    std::chrono::duration<double> begin_execution_duration = std::chrono::steady_clock::now()
-                                                             - task.m_enqueued_timestamp;
+    std::chrono::duration<double, std::milli> begin_execution_duration
+        = std::chrono::steady_clock::now() - task.m_enqueued_timestamp;
     task.m_task_fn();
     statistics.updateMetrics(begin_execution_duration.count());
 }
