@@ -1,19 +1,19 @@
-# 🧵 Multithreaded Task Scheduler
+#  Multithreaded Task Scheduler
 
 This repository implements a **multithreaded task scheduler** in C++. It supports both **one-off** and **recurring tasks**, prioritizing them based on a custom scheduling policy.
 
-## ✨ Features
+##  Features
 
-- ✅ Support for one-time tasks.
-- 🔁 Support for recurring tasks with fixed intervals.
-- 🧵 Internally managed thread pool with:
+-  Support for one-time tasks.
+-  Support for recurring tasks with fixed intervals.
+-  Internally managed thread pool with:
   - A **task dispatcher thread** for executing scheduled tasks.
   - A **recurring task poller thread** that periodically enqueues recurring jobs.
-- ⚖️ **Priority-based execution**:
+-  **Priority-based execution**:
   - Tasks are prioritized first by user-defined **priority level**.
   - Ties are resolved by the **tightest deadline** (earliest to expire).
 
-## 🧩 Architecture Overview
+##  Architecture Overview
 
 When a `Scheduler` object is instantiated, two dedicated threads are launched:
 
