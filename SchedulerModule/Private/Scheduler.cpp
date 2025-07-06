@@ -1,6 +1,7 @@
 #include <Scheduler.hpp>
 
 #include <cassert>
+#include <iostream>
 #include <thread>
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -198,10 +199,25 @@ void Scheduler::scheduleRecurring(TaskFunction &&task_fn,
                                   const Task::Priority priority,
                                   std::chrono::milliseconds interval)
 {
+    constexpr int kMaxRecurringTasksLen = 1e2;
+
     std::lock_guard<std::mutex> lock(m_recurring_mtx);
     const auto dummy_time = std::chrono::steady_clock::now();
     Task task = {std::move(task_fn), priority, std::nullopt, dummy_time};
-    m_recurring_tasks[interval.count()].push_back(task);
+    //Reserve a big enough chunk of memory to prevent copies and allocations.
+    // 100 tasks with the same millisecond interval is very unlinkely I guess.
+    double interval_key = interval.count();
+    auto &task_vec = m_recurring_tasks[interval_key];
+
+    if (task_vec.capacity() > kMaxRecurringTasksLen) {
+        std::cout << "[-] Maximum number of recurring tasks has been reached for interval: "
+                  << interval_key << "/n";
+        return;
+    }
+    task_vec.reserve(kMaxRecurringTasksLen);
+    task_vec.push_back(task);
+}
+
 std::tuple<double, double, double, double> Scheduler::getLatencyStatistics() const noexcept
 {
     const auto metrix = m_stats.getMetricsSoFar();

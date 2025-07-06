@@ -48,14 +48,13 @@ public:
 
 private:
     std::priority_queue<Task> m_task_queue;
-    SchedulerStats m_statistics;
+    std::unordered_map<double, std::vector<Task>> m_recurring_tasks;
 
     std::future<void> m_task_executor;
     std::future<void> m_recurring_enqueuer;
-
     std::atomic<ThreadState> m_executor_state = ThreadState::FINISHED;
 
-    std::unordered_map<double, std::vector<Task>> m_recurring_tasks;
+    SchedulerStats m_stats;
 
     std::mutex m_queue_mtx;
     std::mutex m_recurring_mtx;
