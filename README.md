@@ -10,9 +10,9 @@ This repository implements a high-performance, multithreaded task scheduler in C
 
   Prioritized Execution — Tasks are executed based on:
 
-    Priority level (high, medium, low),
+    + Priority level (high, medium, low),
 
-    Deadline tightness (earlier deadlines first).
+    + Deadline tightness (earlier deadlines first).
 
   Custom Worker Thread Pool — Threads are preallocated, reducing dynamic memory and thread creation overhead.
 
