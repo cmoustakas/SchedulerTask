@@ -149,7 +149,7 @@ Scheduler::Scheduler(size_t num_threads)
                                  executeEnqueuedTasks,
                                  std::ref(m_task_queue),
                                  std::ref(m_executor_state),
-                                 std::ref(m_statistics),
+                                 std::ref(m_stats),
                                  std::ref(m_queue_mtx),
                                  num_threads);
 
@@ -167,6 +167,15 @@ Scheduler::~Scheduler()
     m_executor_state = ThreadState::FINISHED;
     m_task_executor.wait();
     m_recurring_enqueuer.wait();
+
+    //Log the latency metrics at destruction
+    const auto metrix = m_stats.getMetricsSoFar();
+
+    std::cout << "[+] Latency Statistics(ms): \n";
+    std::cout << "\t Min = " << metrix.m_min << "\n";
+    std::cout << "\t Max = " << metrix.m_max << "\n";
+    std::cout << "\t Mean = " << metrix.m_mean << "\n";
+    std::cout << "\t Variance = " << metrix.m_variance << "\n";
 }
 /**
      * @brief schedule
@@ -193,6 +202,15 @@ void Scheduler::scheduleRecurring(TaskFunction &&task_fn,
     const auto dummy_time = std::chrono::steady_clock::now();
     Task task = {std::move(task_fn), priority, std::nullopt, dummy_time};
     m_recurring_tasks[interval.count()].push_back(task);
+std::tuple<double, double, double, double> Scheduler::getLatencyStatistics() const noexcept
+{
+    const auto metrix = m_stats.getMetricsSoFar();
+
+    std::tuple<double, double, double, double> t = {metrix.m_min,
+                                                    metrix.m_max,
+                                                    metrix.m_mean,
+                                                    metrix.m_variance};
+    return t;
 }
 
 } // namespace scheduler_module
