@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <sstream>
 #include <thread>
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -103,35 +104,34 @@ static void pollRecurringTasks(std::priority_queue<Task> &task_queue,
     auto begin_timestamp = std::chrono::steady_clock::now();
 
     while (executor_state == ThreadState::RUNNING) {
-        std::lock_guard<std::mutex> lock_r(recurring_mtx);
         {
-            // Boundary checking on the iterator
-            if (last_it == recurring_tasks.end()) {
-                last_it = recurring_tasks.begin();
-                begin_timestamp = std::chrono::steady_clock::now();
-            }
+            std::lock_guard<std::mutex> lock_r(recurring_mtx);
+            if (!recurring_tasks.empty()) {
+                // Boundary checking on the iterator
+                if (last_it == recurring_tasks.end()) {
+                    last_it = recurring_tasks.begin();
+                    begin_timestamp = std::chrono::steady_clock::now();
+                }
 
-            const double interval = last_it->first;
-            auto &tasks = last_it->second;
+                const double interval = last_it->first;
+                auto &tasks = last_it->second;
 
-            auto current_timestamp = std::chrono::steady_clock::now();
-            const double duration = std::chrono::duration<double, std::milli>(current_timestamp
-                                                                              - begin_timestamp)
-                                        .count();
+                auto current_timestamp = std::chrono::steady_clock::now();
+                const double duration = std::chrono::duration<double, std::milli>(current_timestamp
+                                                                                  - begin_timestamp)
+                                            .count();
 
-            if (duration >= interval) {
-                std::lock_guard<std::mutex> lock_q(queue_mtx);
-                for (auto &task : tasks) {
-                    //Update the enqueued timestamp
-                    task.m_enqueued_timestamp = std::chrono::steady_clock::now();
-                    task_queue.push(task);
+                if (duration >= interval) {
+                    std::lock_guard<std::mutex> lock_q(queue_mtx);
+                    for (auto &task : tasks) {
+                        //Update the enqueued timestamp
+                        task.m_enqueued_timestamp = std::chrono::steady_clock::now();
+                        task_queue.push(task);
+                    }
+                    last_it++;
                 }
             }
-
-            last_it++;
         }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
 
@@ -146,6 +146,7 @@ Scheduler::Scheduler(size_t num_threads)
     // in the meantime it also garbage collects the pool.
     // The second one polls the recurring tasks and enqueues them periodically.
     m_executor_state = ThreadState::RUNNING;
+
     m_task_executor = std::async(std::launch::async,
                                  executeEnqueuedTasks,
                                  std::ref(m_task_queue),
@@ -204,15 +205,17 @@ void Scheduler::scheduleRecurring(TaskFunction &&task_fn,
     std::lock_guard<std::mutex> lock(m_recurring_mtx);
     const auto dummy_time = std::chrono::steady_clock::now();
     Task task = {std::move(task_fn), priority, std::nullopt, dummy_time};
-    //Reserve a big enough chunk of memory to prevent copies and allocations.
+    //Reserve a big enough chunk of memory to prevent multiple copies and allocations.
     // 100 tasks with the same millisecond interval is very unlinkely I guess.
     double interval_key = interval.count();
     auto &task_vec = m_recurring_tasks[interval_key];
 
-    if (task_vec.capacity() > kMaxRecurringTasksLen) {
-        std::cout << "[-] Maximum number of recurring tasks has been reached for interval: "
-                  << interval_key << "/n";
-        return;
+    if (task_vec.size() == kMaxRecurringTasksLen) {
+        std::stringstream err;
+        err << "[-] Maximum number of recurring tasks has been reached for interval: "
+            << interval_key << "\n";
+
+        throw std::runtime_error(err.str());
     }
     task_vec.reserve(kMaxRecurringTasksLen);
     task_vec.push_back(task);
