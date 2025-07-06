@@ -28,7 +28,7 @@ Upon construction of a Scheduler instance:
 
   A separate thread polls recurring tasks and periodically enqueues them if their interval has expired.
 
-Execution Flow
+## Execution Flow
 
   Worker threads wait efficiently until tasks become available.
 
