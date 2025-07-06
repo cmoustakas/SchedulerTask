@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <mutex>
 
 namespace scheduler_module {
@@ -12,8 +13,8 @@ public:
         double m_mean = 0.0;
         double m_min = 0.0;
         double m_max = 0.0;
-        double variance = 0.0;
-        int num_samples = 0.0;
+        double m_variance = 0.0;
+        uint64_t m_num_samples = 0;
     };
 
     SchedulerStats() = default;
@@ -29,11 +30,15 @@ public:
      * @brief getMetricsSoFar
      * @return 
      */
-    [[nodiscard]] Metrics getMetricsSoFar() const noexcept { return m_metrics; }
+    [[nodiscard]] Metrics getMetricsSoFar() const noexcept
+    {
+        std::lock_guard<std::mutex> lock(m_mtx);
+        return m_metrics;
+    }
 
 private:
     Metrics m_metrics;
-    std::mutex m_mtx;
+    mutable std::mutex m_mtx;
 };
 
 } // namespace scheduler_module
