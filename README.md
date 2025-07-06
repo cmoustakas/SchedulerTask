@@ -1,4 +1,4 @@
-🧵 Multithreaded Task Scheduler
+# 🧵 Multithreaded Task Scheduler
 
 This repository implements a high-performance, multithreaded task scheduler in C++. It supports both one-off and recurring tasks and prioritizes execution based on priority level and deadline urgency.
 
