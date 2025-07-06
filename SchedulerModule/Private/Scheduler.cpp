@@ -3,7 +3,15 @@
 #include <cassert>
 #include <thread>
 
-static constexpr int kMicrosecPeriod = 1e2;
+#if defined(__GNUC__) || defined(__clang__)
+#define __try_branch_pred_hint(cond, likely) \
+    (__builtin_expect(!!(cond), (likely))) ///< [!!]: ensures boolean of the condition
+#define __try_prefetch_on_cache(address) (__builtin_prefetch(address))
+#else
+// On MSVC or other compilers, do nothing
+#define __try_branch_pred_hint(cond, likely) (cond)
+#define __try_prefetch_on_cache(address) (void)
+#endif
 
 using ThreadPool = std::vector<std::future<void>>;
 
@@ -11,6 +19,8 @@ namespace scheduler_module {
 
 static void workerWrapper(Task &task, SchedulerStats &statistics)
 {
+    assert(task.m_task_fn != nullptr);
+
     std::chrono::duration<double> begin_execution_duration = std::chrono::steady_clock::now()
                                                              - task.m_enqueued_timestamp;
     task.m_task_fn();
@@ -57,15 +67,14 @@ static void executeEnqueuedTasks(std::priority_queue<Task> &task_queue,
     ThreadPool pool;
     pool.reserve(max_num_of_threads);
     // I am assuming GNU compiler to fetch the vector to the Cache
-    __builtin_prefetch(pool.data());
+    __try_prefetch_on_cache(pool.data());
 
     while (executor_state == ThreadState::RUNNING) {
         // If my pool is not full serve the queue, else garbage collect first
         const bool must_garbage_collect = pool.size() == max_num_of_threads;
-        const bool can_serve_queue = must_garbage_collect ? (garbageCollect(pool)) : (true);
+        bool can_serve_queue = must_garbage_collect ? (garbageCollect(pool)) : (true);
 
-        // Most of the times the queue will be ready to be served, hopefully...
-        if (__builtin_expect(can_serve_queue, true)) {
+        {
             std::lock_guard<std::mutex> lock(mtx);
             can_serve_queue &= !task_queue.empty();
             // Most of the times the queue will be ready to be served, hopefully...
