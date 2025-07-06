@@ -32,6 +32,7 @@ This project uses CMake. Make sure you have CMake (≥ 3.14) and a C++17-compati
 ```bash
 git clone https://github.com/cmoustakas/SchedulerTask.git
 cd SchedulerTask
+git submodule update --init --recursive
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 make -j$(nproc)
