@@ -161,9 +161,7 @@ TEST(SchedulerTest, RecurringTasksNormal)
         std::this_thread::sleep_for(std::chrono::milliseconds(105));
     }
 
-    //+- 1 deviation
-    constexpr int kTollerance = 1;
-    EXPECT_NEAR(execution_times, kExpectedExecutions, kTollerance);
+    EXPECT_EQ(execution_times, kExpectedExecutions);
 }
 
 TEST(SchedulerTest, RecurringTwoTasks)
@@ -199,8 +197,6 @@ TEST(SchedulerTest, RecurringTwoTasks)
         std::this_thread::sleep_for(std::chrono::milliseconds(105));
     }
 
-    //+- 1 deviation
-    constexpr int kTollerance = 1;
-    EXPECT_NEAR(execution_times_one, kExpectedExecutionsOne, kTollerance);
-    EXPECT_NEAR(execution_times_two, kExpectedExecutionsTwo, kTollerance);
+    EXPECT_EQ(execution_times_one, kExpectedExecutionsOne);
+    EXPECT_EQ(execution_times_two, kExpectedExecutionsTwo);
 }
